@@ -11,3 +11,4 @@ Todo
 - Auto detect connected/removed monitors
 - Specify wallpapers by monitor name
 - Proper Makefile
+- Let WM ignore windows
