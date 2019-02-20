@@ -12,6 +12,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <libconfig.h++>
 
 struct Monitor {
     const unsigned int x, y, width, height;
@@ -47,6 +48,25 @@ std::vector<Monitor> getMonitors() {
     return monitors;
 }
 
+std::string getConfigDir() {
+    std::string configDir;
+
+    if(const char* env = std::getenv("XDG_CONFIG_HOME")) {
+        configDir = env;
+    }
+    else if(const char* env = std::getenv("HOME")) {
+        configDir = env;
+        configDir.append("/.config");
+    }
+    else {
+        throw "Unable to find config directory";
+    }
+
+    configDir.append("/scrollpaper/");
+
+    return configDir;
+}
+
 class WallpaperWindow {
     sf::RenderWindow window;
     sf::Texture picTexture;
@@ -56,7 +76,7 @@ class WallpaperWindow {
     Display* display;
 
     public:
-    WallpaperWindow(const Monitor monitor) :
+    WallpaperWindow(const Monitor monitor, const std::string wallpaperPath) :
         picOffset(sf::Vector2f(0, 0))
     {
         display = XOpenDisplay(NULL);
@@ -106,8 +126,7 @@ class WallpaperWindow {
         view.reset(sf::FloatRect(0, 0, monitor.width, monitor.height));
         window.setView(view);
 
-        picTexture.loadFromFile("./example3_scaled.png");
-        //picTexture.loadFromFile("./example2.jpg");
+        picTexture.loadFromFile(wallpaperPath);
         picSprite = sf::Sprite(picTexture);
 
         sf::Vector2f picSize = (sf::Vector2f)picTexture.getSize();
@@ -165,7 +184,7 @@ class WallpaperWindow {
                     picOffset.y = std::max(picOffsetMin.y, std::min(0.0f, picOffset.y));
                     mouseDragOld = sf::Vector2f(event.xmotion.x, event.xmotion.y);
                     //std::cout << picOffset.x << " " << picOffset.y << std::endl;
-                    //window.clear();
+                    window.clear();
                     //if (clock.getElapsedTime() >= sf::seconds(1.0f / 70.0f)) {
                     //	    clock.restart();
                     picSprite.setPosition(picOffset);
@@ -181,12 +200,40 @@ class WallpaperWindow {
 };
 
 int main() {
+    std::string configFilePath;
+    libconfig::Config config;
+
+    try {
+        configFilePath = getConfigDir().append("config.cfg");
+    }
+    catch(char const* str) {
+        std::cerr << str << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    try {
+        config.readFile(configFilePath.c_str());
+    }
+    catch(const libconfig::FileIOException &e) {
+        std::cerr << "I/O error while config reading file: " << configFilePath << std::endl;
+        return EXIT_FAILURE;
+    }
+    catch(const libconfig::ParseException &e) {
+        std::cerr << "Parse error at " << e.getFile() << ":" << e.getLine()
+            << " - " << e.getError() << std::endl;
+        return EXIT_FAILURE;
+    }
+
     std::list<WallpaperWindow> windows;
 
     XInitThreads();
 
     for (const Monitor& monitor : getMonitors()) {
-        windows.emplace_back(monitor);
+        std::string wallpaperPath;
+        if(config.lookupValue("wallpapers." + monitor.name, wallpaperPath)) {
+            windows.emplace_back(monitor, wallpaperPath);
+            std::cout << monitor.name << " " << wallpaperPath << std::endl;
+        }
     }
 
     std::mutex m;
@@ -207,7 +254,7 @@ int main() {
 
     //WallpaperWindow window(monitors[0]);
     //window.updateLoop();
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 // vim: et sw=4 ts=4
