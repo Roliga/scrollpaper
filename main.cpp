@@ -53,37 +53,60 @@ class WallpaperWindow {
     sf::Sprite picSprite;
     sf::Vector2f picOffset;
     sf::Vector2f picOffsetMin;
+    Display* display;
 
     public:
     WallpaperWindow(const Monitor monitor) :
-        window(sf::VideoMode(monitor.width, monitor.height), "SFML works!"),
         picOffset(sf::Vector2f(0, 0))
     {
-        window.setVisible(false);
+        display = XOpenDisplay(NULL);
 
-        window.setFramerateLimit(60);
-        window.setVerticalSyncEnabled(true);
+        // Get the default screen
+        int screen = DefaultScreen(display);
 
-        Display* display = XOpenDisplay(NULL);
-        Window win = window.getSystemHandle();
+        // Let's create the main window
+        XSetWindowAttributes attributes;
+        attributes.background_pixel = BlackPixel(display, screen);
+        attributes.event_mask       = ExposureMask;
+        Window win = XCreateWindow(display, RootWindow(display, screen),
+                monitor.x, monitor.y, monitor.width, monitor.height, 0,
+                DefaultDepth(display, screen),
+                InputOutput,
+                DefaultVisual(display, screen),
+                CWBackPixel | CWEventMask, &attributes);
+        //if (!window)
+        //	return EXIT_FAILURE;
+
+        XStoreName(display, win , "SFML Window");
+
+        // Use a separate sub-window for mouse input since SFML steals all input in the main window
+        XSetWindowAttributes attributes2;
+        attributes2.event_mask       = ButtonPressMask | ButtonMotionMask | ButtonReleaseMask;
+        Window inputWin = XCreateWindow(display, win,
+                0, 0, monitor.width, monitor.height, 0,
+                CopyFromParent,
+                InputOnly,
+                0,
+                CWEventMask, &attributes2);
+
         x11_window_set_desktop(display, win);
         x11_window_set_borderless(display, win);
         x11_window_set_below(display, win);
         x11_window_set_sticky(display, win);
         x11_window_set_skip_taskbar(display, win);
         x11_window_set_skip_pager(display, win);
-        XCloseDisplay(display);
 
-        window.setPosition(sf::Vector2i(monitor.x, monitor.y));
-        window.setSize(sf::Vector2u(monitor.width, monitor.height));
+        XMapWindow(display, win);
+        XMapWindow(display, inputWin);
+        XFlush(display);
+
+        window.create(win);
 
         sf::View view;
         view.reset(sf::FloatRect(0, 0, monitor.width, monitor.height));
         window.setView(view);
 
-        window.setVisible(true);
-
-        picTexture.loadFromFile("./example1.png");
+        picTexture.loadFromFile("./example3_scaled.png");
         //picTexture.loadFromFile("./example2.jpg");
         picSprite = sf::Sprite(picTexture);
 
@@ -99,70 +122,61 @@ class WallpaperWindow {
             picOffsetMin = sf::Vector2f(windowSize.x - picSprite.getLocalBounds().width, 0);
             picOffsetMin = sf::Vector2f(-(picSprite.getGlobalBounds().width - windowSize.x), 0);
         }
-
-        window.setActive(false);
     }
 
     void updateLoop() {
         sf::Vector2f mouseDragOld;
         sf::Vector2f mouseDragNew;
         bool mouseDragging = false;
+        //sf::Clock clock;
 
         while (window.isOpen())
         {
-            sf::Event event;
-            while (window.pollEvent(event)) {
-                switch (event.type) {
-                    case sf::Event::Closed:
-                        window.close();
-                        break;
-                    case sf::Event::MouseButtonPressed:
-                        // Mouse button is pressed, get the position and set moving as active
-                        if (event.mouseButton.button == 0) {
-                            //moving = true;
-                            //oldPos = window.mapPixelToCoords(sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
-                            mouseDragging = true;
-                            mouseDragOld = sf::Vector2f(event.mouseButton.x, event.mouseButton.y);
-                        }
-                        break;
-                    case  sf::Event::MouseButtonReleased:
-                        // Mouse button is released, no longer move
-                        if (event.mouseButton.button == 0) {
-                            //moving = false;
-                            mouseDragging = false;
-                        }
-                        break;
-                    case sf::Event::MouseMoved:
-                        {
-                            // Ignore mouse movement unless a button is pressed (see above)
-                            //if (!moving)
-                            //    break;
-                            if (!mouseDragging)
-                                break;
-                            // Determine the new position in world coordinates
-                            //const sf::Vector2f newPos = window.mapPixelToCoords(sf::Vector2i(event.mouseMove.x, event.mouseMove.y));
-                            mouseDragNew = sf::Vector2f(event.mouseMove.x, event.mouseMove.y);
-                            sf::Vector2f mouseDragDelta = mouseDragNew - mouseDragOld;
-                            picOffset = picOffset + mouseDragDelta;
-                            picOffset.x = std::max(picOffsetMin.x, std::min(0.0f, picOffset.x));
-                            picOffset.y = std::max(picOffsetMin.y, std::min(0.0f, picOffset.y));
-                            mouseDragOld = sf::Vector2f(event.mouseMove.x, event.mouseMove.y);
-                            std::cout << picOffset.x << " " << picOffset.y << std::endl;
-                            
-                            break;
-                        }
-                    default:
-                        break;
-                }
-            }
+            XEvent event;
+            XNextEvent(display, &event);
 
-            window.clear();
-            picSprite.setPosition(picOffset);
-            window.draw(picSprite);
-            window.display();
+            switch (event.type) {
+                case Expose:
+                    window.draw(picSprite);
+                    window.display();
+                    break;
+                case ButtonPress:
+                    // Mouse button is pressed, get the position and set moving as active
+                    if (event.xbutton.button == Button1) {
+                        mouseDragging = true;
+                        mouseDragOld = sf::Vector2f(event.xbutton.x, event.xbutton.y);
+                    }
+                    break;
+                case ButtonRelease:
+                    // Mouse button is released, no longer move
+                    if (event.xbutton.button == Button1) {
+                        mouseDragging = false;
+                    }
+                    break;
+                case MotionNotify:
+                    // Ignore mouse movement unless a button is pressed (see above)
+                    if (!mouseDragging)
+                        break;
+                    // Determine the new position in world coordinates
+                    mouseDragNew = sf::Vector2f(event.xmotion.x, event.xmotion.y);
+                    sf::Vector2f mouseDragDelta = mouseDragNew - mouseDragOld;
+                    picOffset = picOffset + mouseDragDelta;
+                    picOffset.x = std::max(picOffsetMin.x, std::min(0.0f, picOffset.x));
+                    picOffset.y = std::max(picOffsetMin.y, std::min(0.0f, picOffset.y));
+                    mouseDragOld = sf::Vector2f(event.xmotion.x, event.xmotion.y);
+                    //std::cout << picOffset.x << " " << picOffset.y << std::endl;
+                    //window.clear();
+                    //if (clock.getElapsedTime() >= sf::seconds(1.0f / 70.0f)) {
+                    //	    clock.restart();
+                    picSprite.setPosition(picOffset);
+                    window.draw(picSprite);
+                    window.display();
+                    //   }
+                    break;
+            }
         }
 
-        window.setActive(false);
+        XCloseDisplay(display);
     }
 };
 
@@ -170,7 +184,7 @@ int main() {
     std::list<WallpaperWindow> windows;
 
     XInitThreads();
-    
+
     for (const Monitor& monitor : getMonitors()) {
         windows.emplace_back(monitor);
     }
@@ -195,3 +209,5 @@ int main() {
     //window.updateLoop();
     return 0;
 }
+
+// vim: et sw=4 ts=4
