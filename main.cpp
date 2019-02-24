@@ -129,6 +129,7 @@ class WallpaperWindow {
         window.setView(view);
 
         picTexture.loadFromFile(wallpaperPath);
+        picTexture.setSmooth(true);
         picSprite = sf::Sprite(picTexture);
 
         sf::Vector2f picSize = (sf::Vector2f)picTexture.getSize();
