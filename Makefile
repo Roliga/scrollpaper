@@ -1,2 +1,13 @@
-all:
-	g++ -Wall -g -o main main.cpp -lsfml-graphics -lsfml-window -lsfml-system -lX11 -lXext -lICE -lXrandr -lpthread -lconfig++
+prefix ?= /usr/local
+
+scrollpaper: main.cpp
+	g++ -Wall -g -o scrollpaper main.cpp -lsfml-graphics -lsfml-window -lsfml-system -lX11 -lXext -lICE -lXrandr -lpthread -lconfig++
+
+clean:
+	rm scrollpaper
+
+install:
+	install -D -m0755 scrollpaper ${DESTDIR}${prefix}/bin/scrollpaper
+
+uninstall:
+	rm -f ${DESTDIR}${prefix}/bin/scrollpaper
