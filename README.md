@@ -13,5 +13,6 @@ Todo
 - Proper Makefile
 - Let WM ignore windows
 - ~~Store wallpaper position~~
-	- Center by default?
+	- ~~Center by default?~~
 - Pre-scale images to use less memory?
+- Cleanup README

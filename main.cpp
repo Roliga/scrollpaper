@@ -170,6 +170,13 @@ class WallpaperWindow {
             libconfig::Setting &position = root["position"];
             position.add("x", libconfig::Setting::TypeFloat);
             position.add("y", libconfig::Setting::TypeFloat);
+
+            // Center picture by default
+            picOffset = picOffsetMin / 2.0f;
+            picSprite.setPosition(picOffset);
+
+            position["x"] = picOffset.x;
+            position["y"] = picOffset.y;
         }
     }
 
