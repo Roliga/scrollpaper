@@ -12,5 +12,5 @@ Todo
 - ~~Specify wallpapers by monitor name~~
 - Proper Makefile
 - Let WM ignore windows
-- Store wallpaper position
+- ~~Store wallpaper position~~
 	- Center by default?

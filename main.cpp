@@ -74,6 +74,8 @@ class WallpaperWindow {
     sf::Vector2f picOffset;
     sf::Vector2f picOffsetMin;
     Display* display;
+    libconfig::Config windowConfig;
+    std::string windowConfigFilePath;
 
     public:
     WallpaperWindow(const Monitor monitor, const std::string wallpaperPath) :
@@ -141,6 +143,33 @@ class WallpaperWindow {
             picOffsetMin = sf::Vector2f(windowSize.x - picSprite.getLocalBounds().width, 0);
             picOffsetMin = sf::Vector2f(-(picSprite.getGlobalBounds().width - windowSize.x), 0);
         }
+
+        windowConfigFilePath = getConfigDir() + "/position_" + monitor.name + ".cfg";
+
+        try {
+            // Try to load and validate config
+            windowConfig.readFile(windowConfigFilePath.c_str());
+
+            float x = windowConfig.getRoot().lookup("position.x");
+            float y = windowConfig.getRoot().lookup("position.y");
+
+            if (x > 0 || y > 0 || x < picOffsetMin.x || y < picOffsetMin.y)
+                throw 0;
+
+            picOffset = sf::Vector2f(x, y);
+            picSprite.setPosition(picOffset);
+        }
+        catch(...) {
+            // Initialize fresh config
+            windowConfig.clear();
+
+            libconfig::Setting &root = windowConfig.getRoot();
+            root.add("position", libconfig::Setting::TypeGroup);
+
+            libconfig::Setting &position = root["position"];
+            position.add("x", libconfig::Setting::TypeFloat);
+            position.add("y", libconfig::Setting::TypeFloat);
+        }
     }
 
     void updateLoop() {
@@ -148,6 +177,7 @@ class WallpaperWindow {
         sf::Vector2f mouseDragNew;
         bool mouseDragging = false;
         //sf::Clock clock;
+        libconfig::Setting &positionSetting = windowConfig.lookup("position");
 
         while (window.isOpen())
         {
@@ -170,6 +200,16 @@ class WallpaperWindow {
                     // Mouse button is released, no longer move
                     if (event.xbutton.button == Button1) {
                         mouseDragging = false;
+
+                        // Save offset config
+                        try {
+                            positionSetting["x"] = picOffset.x;
+                            positionSetting["y"] = picOffset.y;
+                            windowConfig.writeFile(windowConfigFilePath.c_str());
+                        }
+                        catch (const libconfig::FileIOException &e) {
+                            std::cerr << "I/O error while saving offset" << std::endl;
+                        }
                     }
                     break;
                 case MotionNotify:
