@@ -3,7 +3,9 @@ ScrollPaper
 
 Lets you drag your wallpaper horizontally or vertically depending on its aspect ratio. Too wide for your screen = drag horizontally, too tall for your screen = drag vertically.
 
-Features:
+![preview gif](https://i.imgur.com/28LxFn9.gif)
+
+**Features:**
 
 - Scales wallpaper to fit your screen
 - Configure wallpaper by monitor name
